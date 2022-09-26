@@ -1,5 +1,5 @@
 use hekox::run;
 
 fn main() {
-    run();
+    pollster::block_on(run());
 }
