@@ -3,17 +3,6 @@ name = "hekox"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-array-init	= "2.0.1"
-cfg-if		= "1"
-winit		= "0.26"
-env_logger	= "0.9"
-log		= "0.4"
-wgpu		= "0.13"
-pollster	= "0.2"
-bytemuck	= {version = "1.4", features = ["derive"]}
-image		= {version = "0.24", features = ["webp"]}
-anyhow		= "1.0"
-cgmath		= "0.18"
+array-init = "2.0.1"
+nannou = "0.18.1"
