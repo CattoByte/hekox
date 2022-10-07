@@ -149,17 +149,18 @@ fn view(app: &App, model: &Model, frame: Frame) {
 }
 
 fn create_uniforms(time: f32, [w, h]: [u32; 2]) -> Uniforms {
-    let rotation = Mat4::from_rotation_y(time);
+    let rotation = Mat4::from_rotation_y(time*3.0);
     let aspect_ratio = w as f32 / h as f32;
-    let fov_y = std::f32::consts::FRAC_PI_2*((time*3.0).sin()*0.5)+1.5;
+    let fov_y = std::f32::consts::FRAC_PI_2;
     let near = 0.01;
     let far = 100.0;
     let proj = Mat4::perspective_rh_gl(fov_y, aspect_ratio, near, far);
-    let eye = pt3(0.5, (time*2.0).sin(), 1.0);
-    let target = pt3(0.0, 0.0, 0.0);
-    let up = Vec3::Y;
+    let time2 = time*3.0;
+    let eye = pt3(time2.cos()*2.0+0.3, time.sin()*3.0+1.0, time2.cos()+1.0);
+    let target = Point3::ZERO;
+    let up = Vec3::Z;
     let view = Mat4::look_at_rh(eye, target, up);
-    let scale = Mat4::from_scale(Vec3::splat(0.01));
+    let scale = Mat4::from_scale(Vec3::splat(time.sin()*0.01+0.015)); 
     Uniforms {
         world: rotation,
         view: (view * scale).into(),

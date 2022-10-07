@@ -7,7 +7,7 @@ pub const VERTICES: [Vertex; 531] = [
     // start at 1
     Vertex {
         position: (40.6266, 28.3457, -1.10804),
-    },
+    },  
     Vertex {
         position: (40.0714, 30.4443, -1.10804),
     },
