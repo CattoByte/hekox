@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+nix = "0.20.2"
+crossbeam-utils = "0.8.7"
 array-init = "2.0.1"
 nannou = "0.18.1"
