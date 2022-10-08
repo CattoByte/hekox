@@ -22,6 +22,7 @@ fn model(app: &App) -> Model {
 
 fn view(app: &App, model: &Model, frame: Frame) {
     frame.clear(DIMGRAY);
+
     let window = app.window(model.window_id).unwrap();
     let win_rect = window.rect();
     let draw = app.draw();
@@ -39,12 +40,15 @@ fn view(app: &App, model: &Model, frame: Frame) {
         });
 
     let cube_side = win_rect.w().min(win_rect.h()) * 0.5;
+    draw.text("Hekox")
+        .color(WHITE)
+        .font_size((60 + (app.time.sin() * 20.0) as i32) as u32);
     draw.scale(cube_side)
         .mesh()
         .points_textured(&model.texture, points)
-        .z_radians(app.time * 0.33)
-        .x_radians(app.time * 0.166 + -app.mouse.y / 100.0)
-        .y_radians(app.time * 0.25 + app.mouse.x / 100.0);
+        .z_radians(app.time.sin() * 3.0)
+        .x_radians(app.time.cos() * 3.0)
+        .y_radians((app.time / 4.0).tan());
 
     draw.to_frame(app, &frame).unwrap();
 }
