@@ -129,9 +129,11 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let diffuse_bytes = include_bytes!("textures/test.png");
-        let diffuse_texture = texture::Texture::from_bytes(Some("diffuse_texture"), &device, &queue, diffuse_bytes).unwrap();
-        
+        let diffuse_bytes = include_bytes!("../textures/test.png"); // will this always work?
+        let diffuse_texture =
+            texture::Texture::from_bytes(Some("diffuse_texture"), &device, &queue, diffuse_bytes)
+                .unwrap();
+
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("texture_bind_group_layout"),

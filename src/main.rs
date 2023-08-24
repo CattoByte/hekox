@@ -1,4 +1,5 @@
-use hekox::run;
+mod renderer;
+use renderer::run;
 
 fn main() {
     pollster::block_on(run());
