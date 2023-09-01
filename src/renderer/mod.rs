@@ -1,3 +1,4 @@
+use model::Vertex;
 use std::ops::Mul;
 use wgpu::util::DeviceExt;
 use winit::{
@@ -7,8 +8,12 @@ use winit::{
     window::WindowBuilder,
 };
 
+use self::model::DrawModel; // this is a trait.
+
 mod camera;
 mod instance;
+mod model;
+mod resource;
 mod texture;
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
@@ -18,7 +23,7 @@ static mut INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
 );
 
-#[repr(C)]
+/*#[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 3],
@@ -72,7 +77,7 @@ const INDICES: &[u16] = &[
     // ccw...
     0, 1, 2, 3, 2, 1,
 ];
-
+*/
 struct State {
     window: Window,
     size: winit::dpi::PhysicalSize<u32>,
@@ -87,9 +92,10 @@ struct State {
     camera_bind_group: wgpu::BindGroup,
     depth_texture: texture::Texture,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    //vertex_buffer: wgpu::Buffer,
+    //index_buffer: wgpu::Buffer,
+    //num_indices: u32,
+    model: model::Model,
     instances: Vec<instance::Instance>,
     instance_buffer: wgpu::Buffer,
 }
@@ -145,9 +151,13 @@ impl State {
         surface.configure(&device, &config);
 
         let diffuse_bytes = include_bytes!("../textures/test.png"); // will this always work?
-        let diffuse_texture =
-            texture::Texture::from_bytes(Some("diffuse_texture"), &device, &queue, diffuse_bytes)
-                .unwrap();
+        let diffuse_texture = texture::Texture::from_image_bytes(
+            Some("diffuse_texture"),
+            &device,
+            &queue,
+            diffuse_bytes,
+        )
+        .unwrap();
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -252,14 +262,14 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc(), instance::InstanceRaw::desc()],
+                buffers: &[model::ModelVertex::desc(), instance::InstanceRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),  // no linear!
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -287,7 +297,7 @@ impl State {
             multiview: None,
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        /*let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("vertex_buffer"),
             contents: bytemuck::cast_slice(VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
@@ -299,7 +309,17 @@ impl State {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let num_indices = INDICES.len() as u32;
+        let num_indices = INDICES.len() as u32;*/
+
+        let model_bytes = include_bytes!("../models/junk.glb");
+        let model = resource::load_model_bytes(
+            "junk",
+            model_bytes,
+            &device,
+            &queue,
+            &texture_bind_group_layout,
+        )
+        .unwrap();
 
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
@@ -355,9 +375,10 @@ impl State {
             camera_bind_group,
             depth_texture,
             render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
+            //vertex_buffer,
+            //index_buffer,
+            //num_indices,
+            model,
             instances,
             instance_buffer,
         }
@@ -429,10 +450,12 @@ impl State {
                                 cgmath::Deg(0.0),
                             )
                         } else {
-                            let quat_a = cgmath::Quaternion::from_angle_z(cgmath::Deg(45.0));
+                            let quat_a = cgmath::Quaternion::from_angle_z(cgmath::Deg(COUNTER.cos() * 30.0));
                             let quat_b =
                                 cgmath::Quaternion::from_angle_y(cgmath::Deg(COUNTER.sin() * 30.0));
-                            quat_b.mul(quat_a)
+                            let quat_c = cgmath::Quaternion::from_angle_y(cgmath::Deg(180.0));
+                            let tmp = quat_b.mul(quat_a);
+                            quat_c.mul(tmp)
                         };
 
                         instance::Instance { position, rotation }
@@ -491,12 +514,17 @@ impl State {
         });
 
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, &self.diffuse_bing_group, &[]);
-        render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        //render_pass.set_bind_group(0, &self.diffuse_bing_group, &[]);
+        //render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+        //render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        //render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-        render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
+        //render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
+        render_pass.draw_model_instanced(
+            &self.model,
+            0..self.instances.len() as u32,
+            &self.camera_bind_group,
+        );
 
         drop(render_pass);
         self.queue.submit(std::iter::once(encoder.finish()));

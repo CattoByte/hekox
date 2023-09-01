@@ -1,6 +1,7 @@
 use anyhow::*;
 use image::GenericImageView;
 
+#[derive(Debug)]
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -10,8 +11,8 @@ pub struct Texture {
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
-    pub fn from_bytes(
-        label: Option<&str>, //つづ: think about this. should it be required?
+    pub fn from_image_bytes(
+        label: Option<&str>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bytes: &[u8],
@@ -26,9 +27,20 @@ impl Texture {
         queue: &wgpu::Queue,
         img: &image::DynamicImage,
     ) -> Result<Self> {
-        let rgba = img.to_rgba8();
+        let data = img.to_rgba8();
         let dimensions = img.dimensions();
+        Self::from_raw_data(label, device, queue, &data, dimensions)
+    }
 
+    // this might cause bugs if a texture that is not in the Rgba8UnormSrgb format is given, but
+    // i'm curious as to what'll happen.
+    pub fn from_raw_data(
+        label: Option<&str>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        data: &[u8],
+        dimensions: (u32, u32),
+    ) -> Result<Self> {
         let size = wgpu::Extent3d {
             width: dimensions.0,
             height: dimensions.1,
@@ -52,7 +64,7 @@ impl Texture {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &rgba,
+            &data,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * dimensions.0),
@@ -67,7 +79,7 @@ impl Texture {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
+            mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
