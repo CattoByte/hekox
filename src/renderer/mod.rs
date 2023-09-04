@@ -1,3 +1,4 @@
+use cgmath::Rotation3;
 use model::Vertex;
 use std::ops::Mul;
 use wgpu::util::DeviceExt;
@@ -15,6 +16,7 @@ mod instance;
 mod model;
 mod resource;
 mod texture;
+mod object;
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
 static mut INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
@@ -91,13 +93,16 @@ struct State {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     depth_texture: texture::Texture,
-    render_pipeline: wgpu::RenderPipeline,
     //vertex_buffer: wgpu::Buffer,
     //index_buffer: wgpu::Buffer,
     //num_indices: u32,
-    model: model::Model,
     instances: Vec<instance::Instance>,
     instance_buffer: wgpu::Buffer,
+    object: object::Object,
+    object_uniform: object::ObjectUniform,
+    object_buffer: wgpu::Buffer,
+    object_bind_group: wgpu::BindGroup,
+    render_pipeline: wgpu::RenderPipeline,
 }
 
 impl State {
@@ -198,7 +203,7 @@ impl State {
         });
 
         let camera = camera::Camera {
-            eye: (0.0, 0.0, 6.0).into(),
+            eye: (0.0, 0.0, 7.5).into(),
             target: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
             aspect: config.width as f32 / config.height as f32,
@@ -249,10 +254,118 @@ impl State {
             // look into using the include_wgsl! macro.
         });
 
+
+        /*let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex_buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("index_buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        let num_indices = INDICES.len() as u32;*/
+
+
+        let instances = (0..NUM_INSTANCES_PER_ROW)
+            .flat_map(|z| {
+                use cgmath::prelude::*;
+                (0..NUM_INSTANCES_PER_ROW).flat_map(move |x| {
+                    (0..NUM_INSTANCES_PER_ROW).map(move |y| {
+                        let position = unsafe {
+                            cgmath::Vector3 {
+                                x: x as f32,
+                                y: y as f32,
+                                z: z as f32,
+                            } - INSTANCE_DISPLACEMENT
+                        }; // つづ: remove unsafe once INSTANCE_DISPLACEMENT is no longer static.
+                        let rotation = if position.is_zero() {
+                            cgmath::Quaternion::from_axis_angle(
+                                cgmath::Vector3::unit_z(),
+                                cgmath::Deg(0.0),
+                            )
+                        } else {
+                            cgmath::Quaternion::from_axis_angle(
+                                position.normalize(),
+                                cgmath::Deg(45.0),
+                            )
+                        };
+
+                        instance::Instance { position, rotation }
+                    })
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let instance_data = instances
+            .iter()
+            .map(instance::Instance::to_raw)
+            .collect::<Vec<_>>();
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("index_buffer"),
+            contents: bytemuck::cast_slice(&instance_data),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let model_bytes = include_bytes!("../models/junk.glb");
+        let model = resource::load_model_bytes(
+            "junk",
+            model_bytes,
+            &device,
+            &queue,
+            &texture_bind_group_layout,
+        )
+        .unwrap();
+
+        let object = object::Object::new(
+            "junk".to_string(),
+            model,
+            None,
+            None,
+            None,
+            None,
+            );
+
+        let mut object_uniform = object::ObjectUniform::new();
+        object_uniform.update(&object);
+
+        let object_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("object_buffer"),
+            contents: bytemuck::cast_slice(&[object_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let object_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("object_bind_group_layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let object_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("object_bind_group"),
+            layout: &object_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: object_buffer.as_entire_binding(),
+            }]
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("render_pipeline_layout"),
-                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
+                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout, &object_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -297,70 +410,6 @@ impl State {
             multiview: None,
         });
 
-        /*let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex_buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("index_buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        let num_indices = INDICES.len() as u32;*/
-
-        let model_bytes = include_bytes!("../models/junk.glb");
-        let model = resource::load_model_bytes(
-            "junk",
-            model_bytes,
-            &device,
-            &queue,
-            &texture_bind_group_layout,
-        )
-        .unwrap();
-
-        let instances = (0..NUM_INSTANCES_PER_ROW)
-            .flat_map(|z| {
-                use cgmath::prelude::*;
-                (0..NUM_INSTANCES_PER_ROW).flat_map(move |x| {
-                    (0..NUM_INSTANCES_PER_ROW).map(move |y| {
-                        let position = unsafe {
-                            cgmath::Vector3 {
-                                x: x as f32,
-                                y: y as f32,
-                                z: z as f32,
-                            } - INSTANCE_DISPLACEMENT
-                        }; // つづ: remove unsafe once INSTANCE_DISPLACEMENT is no longer static.
-                        let rotation = if position.is_zero() {
-                            cgmath::Quaternion::from_axis_angle(
-                                cgmath::Vector3::unit_z(),
-                                cgmath::Deg(0.0),
-                            )
-                        } else {
-                            cgmath::Quaternion::from_axis_angle(
-                                position.normalize(),
-                                cgmath::Deg(45.0),
-                            )
-                        };
-
-                        instance::Instance { position, rotation }
-                    })
-                })
-            })
-            .collect::<Vec<_>>();
-
-        let instance_data = instances
-            .iter()
-            .map(instance::Instance::to_raw)
-            .collect::<Vec<_>>();
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("index_buffer"),
-            contents: bytemuck::cast_slice(&instance_data),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-
         Self {
             window,
             size,
@@ -374,13 +423,16 @@ impl State {
             camera_buffer,
             camera_bind_group,
             depth_texture,
-            render_pipeline,
             //vertex_buffer,
             //index_buffer,
             //num_indices,
-            model,
             instances,
             instance_buffer,
+            object,
+            object_uniform,
+            object_buffer,
+            object_bind_group,
+            render_pipeline,
         }
     }
 
@@ -437,7 +489,7 @@ impl State {
                 (0..NUM_INSTANCES_PER_ROW).flat_map(move |x| {
                     (0..NUM_INSTANCES_PER_ROW).map(move |y| {
                         let modified_y = y as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0; // * (COUNTER * 0.2).sin() * 0.5;
-                        INSTANCE_DISPLACEMENT.y = modified_y * (COUNTER * 0.25).cos();
+                        INSTANCE_DISPLACEMENT.y = modified_y * (COUNTER * 0.125).cos() * 0.1 + 0.5;
                         let position = unsafe {
                             cgmath::Vector3 {
                                 x: x as f32,
@@ -474,6 +526,22 @@ impl State {
             &self.instance_buffer,
             0,
             bytemuck::cast_slice(&instance_data),
+        );
+
+        self.object.position.x = (COUNTER * 0.125).sin();
+        self.object.position.y = (COUNTER * 0.125).cos();
+        self.object.rotation = cgmath::Quaternion::from_angle_y(
+            cgmath::Deg((COUNTER * 3.0) % 360.0));
+        self.object.scale = (
+            1.0,
+            (COUNTER * 0.25).sin() * 0.5 + 0.75,
+            1.0,
+        );
+        self.object_uniform.update(&self.object);
+        self.queue.write_buffer(
+            &self.object_buffer,
+            0,
+            bytemuck::cast_slice(&[self.object_uniform]),
         );
     }
 
@@ -522,9 +590,10 @@ impl State {
         render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         //render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
         render_pass.draw_model_instanced(
-            &self.model,
+            &self.object.model,
             0..self.instances.len() as u32,
             &self.camera_bind_group,
+            &self.object_bind_group,
         );
 
         drop(render_pass);
