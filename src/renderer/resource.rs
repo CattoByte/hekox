@@ -1,7 +1,7 @@
 use wgpu::util::DeviceExt;
 
-use crate::renderer::model;
-use crate::renderer::texture;
+use super::model;
+use super::texture;
 
 pub fn load_model_bytes(
     label: &str,
@@ -105,8 +105,5 @@ pub fn load_model_bytes(
         }
     }
 
-    return Ok(model::Model {
-        meshes,
-        materials,
-    });
+    return Ok(model::Model { meshes, materials });
 }

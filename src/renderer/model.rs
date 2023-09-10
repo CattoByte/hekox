@@ -1,7 +1,12 @@
 use std::ops::Range;
 
-use crate::renderer::texture;
+use super::texture;
 
+// つづ: should this be public? in fact, should there even be a trait? having a const variable with
+// the VBL would work... ideally, this file should match with object.rs in terms of structure.
+//
+// i noticed this descriptor is used in the render pipeline, but the trait should still be able to
+// be removed.
 pub trait Vertex {
     fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
@@ -136,7 +141,13 @@ where
     ) {
         for mesh in &model.meshes {
             let material = &model.materials[mesh.material];
-            self.draw_mesh_instanced(mesh, material, instances.clone(), camera_bind_group, object_bind_group);
+            self.draw_mesh_instanced(
+                mesh,
+                material,
+                instances.clone(),
+                camera_bind_group,
+                object_bind_group,
+            );
         }
     }
 }

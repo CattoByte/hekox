@@ -9,14 +9,14 @@ use winit::{
     window::WindowBuilder,
 };
 
-use self::model::DrawModel; // this is a trait.
+use self::model::DrawModel; // this is a trait (which might be deprecated lol).
 
 mod camera;
 mod instance;
 mod model;
+mod object;
 mod resource;
 mod texture;
-mod object;
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
 static mut INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
@@ -99,9 +99,6 @@ struct State {
     instances: Vec<instance::Instance>,
     instance_buffer: wgpu::Buffer,
     object: object::Object,
-    object_uniform: object::ObjectUniform,
-    object_buffer: wgpu::Buffer,
-    object_bind_group: wgpu::BindGroup,
     render_pipeline: wgpu::RenderPipeline,
 }
 
@@ -254,7 +251,6 @@ impl State {
             // look into using the include_wgsl! macro.
         });
 
-
         /*let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("vertex_buffer"),
             contents: bytemuck::cast_slice(VERTICES),
@@ -268,7 +264,6 @@ impl State {
         });
 
         let num_indices = INDICES.len() as u32;*/
-
 
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
@@ -320,52 +315,17 @@ impl State {
         )
         .unwrap();
 
-        let object = object::Object::new(
-            "junk".to_string(),
-            model,
-            None,
-            None,
-            None,
-            None,
-            );
-
-        let mut object_uniform = object::ObjectUniform::new();
-        object_uniform.update(&object);
-
-        let object_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("object_buffer"),
-            contents: bytemuck::cast_slice(&[object_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let object_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("object_bind_group_layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let object_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("object_bind_group"),
-            layout: &object_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: object_buffer.as_entire_binding(),
-            }]
-        });
+        let object =
+            object::Object::new(&device, "junk".to_string(), model, None, None, None, None);
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("render_pipeline_layout"),
-                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout, &object_bind_group_layout],
+                bind_group_layouts: &[
+                    &texture_bind_group_layout,
+                    &camera_bind_group_layout,
+                    &object::Object::layout(&device),
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -382,7 +342,7 @@ impl State {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),  // no linear!
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING), // no linear!
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -429,9 +389,6 @@ impl State {
             instances,
             instance_buffer,
             object,
-            object_uniform,
-            object_buffer,
-            object_bind_group,
             render_pipeline,
         }
     }
@@ -503,7 +460,8 @@ impl State {
                                 cgmath::Deg(0.0),
                             )
                         } else {
-                            let quat_a = cgmath::Quaternion::from_angle_z(cgmath::Deg(COUNTER.cos() * 30.0));
+                            let quat_a =
+                                cgmath::Quaternion::from_angle_z(cgmath::Deg(COUNTER.cos() * 30.0));
                             let quat_b =
                                 cgmath::Quaternion::from_angle_y(cgmath::Deg(COUNTER.sin() * 30.0));
                             let quat_c = cgmath::Quaternion::from_angle_y(cgmath::Deg(180.0));
@@ -530,18 +488,14 @@ impl State {
 
         self.object.position.x = (COUNTER * 0.125).sin();
         self.object.position.y = (COUNTER * 0.125).cos();
-        self.object.rotation = cgmath::Quaternion::from_angle_y(
-            cgmath::Deg((COUNTER * 3.0) % 360.0));
-        self.object.scale = (
-            1.0,
-            (COUNTER * 0.25).sin() * 0.5 + 0.75,
-            1.0,
-        );
-        self.object_uniform.update(&self.object);
+        self.object.rotation =
+            cgmath::Quaternion::from_angle_y(cgmath::Deg((COUNTER * 3.0) % 360.0));
+        self.object.scale = (1.0, (COUNTER * 0.25).sin() * 0.5 + 0.75, 1.0);
+        self.object.update();
         self.queue.write_buffer(
-            &self.object_buffer,
+            &self.object.buffer,
             0,
-            bytemuck::cast_slice(&[self.object_uniform]),
+            bytemuck::cast_slice(&[self.object.uniform]),
         );
     }
 
@@ -593,7 +547,7 @@ impl State {
             &self.object.model,
             0..self.instances.len() as u32,
             &self.camera_bind_group,
-            &self.object_bind_group,
+            &self.object.bind_group,
         );
 
         drop(render_pass);
