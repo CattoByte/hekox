@@ -1,12 +1,12 @@
-use std::ops::Range;
-
 use super::texture;
+use super::object;
 
 // つづ: should this be public? in fact, should there even be a trait? having a const variable with
 // the VBL would work... ideally, this file should match with object.rs in terms of structure.
 //
 // i noticed this descriptor is used in the render pipeline, but the trait should still be able to
 // be removed.
+
 pub trait Vertex {
     fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
@@ -60,7 +60,8 @@ pub struct Model {
     pub materials: Vec<Material>,
 }
 
-pub trait DrawModel<'a> {
+// temporarily deprecated while i figure out what the hell i should do.
+/*pub trait DrawModel<'a> {
     fn draw_mesh(
         &mut self,
         mesh: &'a Mesh,
@@ -148,6 +149,38 @@ where
                 camera_bind_group,
                 object_bind_group,
             );
+        }
+    }
+}
+*/
+
+pub trait DrawObject<'a> {
+    fn draw_object_instanced(
+        &mut self,
+        object: &'a object::Object,
+        camera_bind_group: &'a wgpu::BindGroup,
+    );
+}
+
+impl<'a, 'b> DrawObject<'b> for wgpu::RenderPass<'a>
+where
+    'b: 'a,
+{
+    fn draw_object_instanced(
+        &mut self,
+        object: &'b object::Object,
+        camera_bind_group: &'b wgpu::BindGroup,
+    ) {
+        self.set_vertex_buffer(1, object.instance_buffer.slice(..));
+        self.set_bind_group(1, camera_bind_group, &[]);
+        self.set_bind_group(2, &object.bind_group, &[]);
+
+        for mesh in &object.model.meshes {
+            let material = &object.model.materials[mesh.material];
+        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        self.set_bind_group(0, &material.bind_group, &[]);
+        self.draw_indexed(0..mesh.num_elements, 0, 0..object.instances.len() as u32);
         }
     }
 }

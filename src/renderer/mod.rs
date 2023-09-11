@@ -9,7 +9,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use self::model::DrawModel; // this is a trait (which might be deprecated lol).
+use self::model::DrawObject; // this is a trait (which might be deprecated lol).
 
 mod camera;
 mod instance;
@@ -18,7 +18,7 @@ mod object;
 mod resource;
 mod texture;
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
+const NUM_INSTANCES_PER_ROW: u32 = 2;
 static mut INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
@@ -96,9 +96,7 @@ struct State {
     //vertex_buffer: wgpu::Buffer,
     //index_buffer: wgpu::Buffer,
     //num_indices: u32,
-    instances: Vec<instance::Instance>,
-    instance_buffer: wgpu::Buffer,
-    object: object::Object,
+    objects: Vec<object::Object>,
     render_pipeline: wgpu::RenderPipeline,
 }
 
@@ -295,16 +293,7 @@ impl State {
             })
             .collect::<Vec<_>>();
 
-        let instance_data = instances
-            .iter()
-            .map(instance::Instance::to_raw)
-            .collect::<Vec<_>>();
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("index_buffer"),
-            contents: bytemuck::cast_slice(&instance_data),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-
+        let mut objects: Vec<object::Object> = Vec::new();
         let model_bytes = include_bytes!("../models/junk.glb");
         let model = resource::load_model_bytes(
             "junk",
@@ -314,9 +303,36 @@ impl State {
             &texture_bind_group_layout,
         )
         .unwrap();
-
-        let object =
-            object::Object::new(&device, "junk".to_string(), model, None, None, None, None);
+        objects.push(object::Object::new(
+            &device,
+            "junk".to_string(),
+            model,
+            None,
+            None,
+            None,
+            None,
+        ));
+        let model_bytes = include_bytes!("../models/junk.glb");
+        let model = resource::load_model_bytes(
+            "junk",
+            model_bytes,
+            &device,
+            &queue,
+            &texture_bind_group_layout,
+        )
+        .unwrap();
+        objects.push(object::Object::new(
+            &device,
+            "junk2".to_string(),
+            model,
+            Some((3.0, 0.0, -2.0).into()),
+            None,
+            Some((1.0, 5.0, 1.0).into()),
+            None,
+        ));
+        for i in &mut objects {
+            i.update(&queue);
+        }
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -386,9 +402,7 @@ impl State {
             //vertex_buffer,
             //index_buffer,
             //num_indices,
-            instances,
-            instance_buffer,
-            object,
+            objects,
             render_pipeline,
         }
     }
@@ -413,7 +427,7 @@ impl State {
     }
 
     unsafe fn update(&mut self) {
-        use cgmath::InnerSpace;
+        /*use cgmath::InnerSpace;
         static mut COUNTER: f32 = 0.0;
         let forward = self.camera.target - self.camera.eye;
         let forward_norm = forward.normalize();
@@ -486,17 +500,12 @@ impl State {
             bytemuck::cast_slice(&instance_data),
         );
 
-        self.object.position.x = (COUNTER * 0.125).sin();
-        self.object.position.y = (COUNTER * 0.125).cos();
-        self.object.rotation =
+        self.objects[0].position.x = (COUNTER * 0.125).sin();
+        self.objects[0].position.y = (COUNTER * 0.125).cos();
+        self.objects[0].rotation =
             cgmath::Quaternion::from_angle_y(cgmath::Deg((COUNTER * 3.0) % 360.0));
-        self.object.scale = (1.0, (COUNTER * 0.25).sin() * 0.5 + 0.75, 1.0);
-        self.object.update();
-        self.queue.write_buffer(
-            &self.object.buffer,
-            0,
-            bytemuck::cast_slice(&[self.object.uniform]),
-        );
+        self.objects[0].scale = (1.0, (COUNTER * 0.25).sin() * 0.5 + 0.75, 1.0);
+        self.objects[0].update(&self.queue);*/
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -541,14 +550,11 @@ impl State {
         //render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
         //render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         //render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        //render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         //render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
-        render_pass.draw_model_instanced(
-            &self.object.model,
-            0..self.instances.len() as u32,
-            &self.camera_bind_group,
-            &self.object.bind_group,
-        );
+        for i in &self.objects {
+            render_pass.draw_object_instanced(&i, &self.camera_bind_group);
+        }
 
         drop(render_pass);
         self.queue.submit(std::iter::once(encoder.finish()));
