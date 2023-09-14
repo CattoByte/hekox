@@ -1,5 +1,5 @@
-use super::texture;
 use super::object;
+use super::texture;
 
 // つづ: should this be public? in fact, should there even be a trait? having a const variable with
 // the VBL would work... ideally, this file should match with object.rs in terms of structure.
@@ -177,10 +177,10 @@ where
 
         for mesh in &object.model.meshes {
             let material = &object.model.materials[mesh.material];
-        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        self.set_bind_group(0, &material.bind_group, &[]);
-        self.draw_indexed(0..mesh.num_elements, 0, 0..object.instances.len() as u32);
+            self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+            self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            self.set_bind_group(0, &material.bind_group, &[]);
+            self.draw_indexed(0..mesh.num_elements, 0, 0..object.instances.len() as u32);
         }
     }
 }

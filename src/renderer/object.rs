@@ -14,15 +14,15 @@ pub struct Object {
     pub instances: Vec<instance::Instance>,
     // there would be an instance count here, but vectors have their own length field.
     pub instance_buffer: wgpu::Buffer,
-    pub object_uniform: ObjectUniform,  // つづ: check if this is actually needed in here.
+    pub object_uniform: ObjectUniform, // つづ: check if this is actually needed in here.
     pub object_buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
 }
 
 impl Object {
     pub fn new(
-        device: &wgpu::Device,
         label: String,
+        device: &wgpu::Device,
         model: model::Model,
         position: Option<cgmath::Point3<f32>>,
         rotation: Option<cgmath::Quaternion<f32>>,
@@ -50,7 +50,8 @@ impl Object {
             }]
         };
 
-        let instance_data: Vec<instance::InstanceRaw> = instances.iter().map(instance::Instance::to_raw).collect(); 
+        let instance_data: Vec<instance::InstanceRaw> =
+            instances.iter().map(instance::Instance::to_raw).collect();
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("{} instance buffer", &label)),
             contents: bytemuck::cast_slice(&instance_data),
@@ -66,10 +67,9 @@ impl Object {
             mapped_at_creation: false, //つづ: look into this and why it crashes when true.
         });
 
-        let buffer_layout = Object::layout(device);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some(&format!("{} bind group", &label)),
-            layout: &buffer_layout,
+            layout: &Object::layout(&device),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: object_buffer.as_entire_binding(),
@@ -109,12 +109,17 @@ impl Object {
 
     pub fn update(&mut self, queue: &wgpu::Queue) {
         use cgmath::EuclideanSpace;
-        self.object_uniform.transformation = (cgmath::Matrix4::from_translation(self.position.to_vec())
-            * cgmath::Matrix4::from(self.rotation)
-            * cgmath::Matrix4::from_nonuniform_scale(self.scale.0, self.scale.1, self.scale.2))
-        .into();
+        self.object_uniform.transformation =
+            (cgmath::Matrix4::from_translation(self.position.to_vec())
+                * cgmath::Matrix4::from(self.rotation)
+                * cgmath::Matrix4::from_nonuniform_scale(self.scale.0, self.scale.1, self.scale.2))
+            .into();
 
-        queue.write_buffer(&self.object_buffer, 0, bytemuck::cast_slice(&[self.object_uniform]));
+        queue.write_buffer(
+            &self.object_buffer,
+            0,
+            bytemuck::cast_slice(&[self.object_uniform]),
+        );
     }
 }
 

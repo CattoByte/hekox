@@ -25,61 +25,6 @@ static mut INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
 );
 
-/*#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    //colour: [f32; 3],
-    tex_coords: [f32; 2],
-}
-
-// つづ: use the vertex_attr_array macro.
-// つづ: consider the above after model loading is implemented.
-impl Vertex {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ],
-        }
-    }
-}
-
-const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [-0.5, -0.5, 0.0], // top left
-        tex_coords: [1.0, 1.0],
-    },
-    Vertex {
-        position: [0.5, -0.5, 0.0], // top right
-        tex_coords: [-1.0, 1.0],
-    },
-    Vertex {
-        position: [-0.5, 0.5, 0.0], // bottom left
-        tex_coords: [1.0, -1.0],
-    },
-    Vertex {
-        position: [0.5, 0.5, 0.0], // bottom right
-        tex_coords: [-1.0, -1.0],
-    },
-];
-
-const INDICES: &[u16] = &[
-    // ccw...
-    0, 1, 2, 3, 2, 1,
-];
-*/
 struct State {
     window: Window,
     size: winit::dpi::PhysicalSize<u32>,
@@ -87,15 +32,8 @@ struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    diffuse_bing_group: wgpu::BindGroup,
     camera: camera::Camera,
-    camera_uniform: camera::CameraUniform,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
     depth_texture: texture::Texture,
-    //vertex_buffer: wgpu::Buffer,
-    //index_buffer: wgpu::Buffer,
-    //num_indices: u32,
     objects: Vec<object::Object>,
     render_pipeline: wgpu::RenderPipeline,
 }
@@ -150,15 +88,6 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let diffuse_bytes = include_bytes!("../textures/test.png"); // will this always work?
-        let diffuse_texture = texture::Texture::from_image_bytes(
-            Some("diffuse_texture"),
-            &device,
-            &queue,
-            diffuse_bytes,
-        )
-        .unwrap();
-
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("texture_bind_group_layout"),
@@ -182,116 +111,21 @@ impl State {
                 ],
             });
 
-        let diffuse_bing_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("diffuse_bing_group"),
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                },
-            ],
-        });
-
-        let camera = camera::Camera {
-            eye: (0.0, 0.0, 7.5).into(),
-            target: (0.0, 0.0, 0.0).into(),
-            up: cgmath::Vector3::unit_y(),
-            aspect: config.width as f32 / config.height as f32,
-            fov: 45.0,
-            znear: 0.1,
-            zfar: 100.0,
-        };
-
-        let mut camera_uniform = camera::CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
-
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("camera_buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("camera_bind_group_layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("camera_bind_group"),
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-        });
+        let mut camera = camera::Camera::new(
+            "the".to_string(), // the camera uniform, the camera buffer, etc.
+            &device,
+            (0.0, 0.0, 7.5),
+            (0.0, 0.0, 0.0),
+            cgmath::Vector3::unit_y(),
+            config.width as f32 / config.height as f32,
+            45.0,
+            0.1,
+            100.0,
+        );
+        camera.update(&queue);
 
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
-
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-            // look into using the include_wgsl! macro.
-        });
-
-        /*let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex_buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("index_buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        let num_indices = INDICES.len() as u32;*/
-
-        let instances = (0..NUM_INSTANCES_PER_ROW)
-            .flat_map(|z| {
-                use cgmath::prelude::*;
-                (0..NUM_INSTANCES_PER_ROW).flat_map(move |x| {
-                    (0..NUM_INSTANCES_PER_ROW).map(move |y| {
-                        let position = unsafe {
-                            cgmath::Vector3 {
-                                x: x as f32,
-                                y: y as f32,
-                                z: z as f32,
-                            } - INSTANCE_DISPLACEMENT
-                        }; // つづ: remove unsafe once INSTANCE_DISPLACEMENT is no longer static.
-                        let rotation = if position.is_zero() {
-                            cgmath::Quaternion::from_axis_angle(
-                                cgmath::Vector3::unit_z(),
-                                cgmath::Deg(0.0),
-                            )
-                        } else {
-                            cgmath::Quaternion::from_axis_angle(
-                                position.normalize(),
-                                cgmath::Deg(45.0),
-                            )
-                        };
-
-                        instance::Instance { position, rotation }
-                    })
-                })
-            })
-            .collect::<Vec<_>>();
 
         let mut objects: Vec<object::Object> = Vec::new();
         let model_bytes = include_bytes!("../models/junk.glb");
@@ -304,8 +138,8 @@ impl State {
         )
         .unwrap();
         objects.push(object::Object::new(
-            &device,
             "junk".to_string(),
+            &device,
             model,
             None,
             None,
@@ -322,8 +156,8 @@ impl State {
         )
         .unwrap();
         objects.push(object::Object::new(
-            &device,
             "junk2".to_string(),
+            &device,
             model,
             Some((3.0, 0.0, -2.0).into()),
             None,
@@ -334,17 +168,21 @@ impl State {
             i.update(&queue);
         }
 
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            // look into using the include_wgsl! macro.
+        });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("render_pipeline_layout"),
                 bind_group_layouts: &[
                     &texture_bind_group_layout,
-                    &camera_bind_group_layout,
+                    &camera::Camera::layout(&device),
                     &object::Object::layout(&device),
                 ],
                 push_constant_ranges: &[],
             });
-
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("render_pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -393,15 +231,8 @@ impl State {
             device,
             queue,
             config,
-            diffuse_bing_group,
             camera,
-            camera_uniform,
-            camera_buffer,
-            camera_bind_group,
             depth_texture,
-            //vertex_buffer,
-            //index_buffer,
-            //num_indices,
             objects,
             render_pipeline,
         }
@@ -553,7 +384,7 @@ impl State {
         //render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         //render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
         for i in &self.objects {
-            render_pass.draw_object_instanced(&i, &self.camera_bind_group);
+            render_pass.draw_object_instanced(&i, &self.camera.bind_group);
         }
 
         drop(render_pass);
