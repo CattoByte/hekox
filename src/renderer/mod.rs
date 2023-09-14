@@ -82,8 +82,9 @@ impl State {
             format: surface_format,
             width: size.width,
             height: size.height,
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
+            present_mode: wgpu::PresentMode::AutoVsync,
+            alpha_mode: surface_caps.alpha_modes[0], // つづ: run some tests on this. it may cause
+            // some issues just like present_mode did...
             view_formats: vec![],
         };
         surface.configure(&device, &config);
@@ -91,7 +92,7 @@ impl State {
         let mut camera = camera::Camera::new(
             "the".to_string(), // the camera uniform, the camera buffer, etc.
             &device,
-            (0.0, 0.0, 7.5),
+            (0.0, 0.0, 6.0),
             (0.0, 0.0, 0.0),
             cgmath::Vector3::unit_y(),
             config.width as f32 / config.height as f32,
@@ -115,7 +116,7 @@ impl State {
             model,
             None,
             None,
-            None,
+            Some((1.5, 1.5, 1.5)),
             None,
         ));
         let model_bytes = include_bytes!("../models/junk.glb");
@@ -125,9 +126,45 @@ impl State {
             "junk2".to_string(),
             &device,
             model,
-            Some((3.0, 0.0, -2.0).into()),
             None,
-            Some((1.0, 5.0, 1.0).into()),
+            None,
+            Some((0.5, 0.5, 0.5)),
+            None,
+        ));
+        let model_bytes = include_bytes!("../models/junk.glb");
+        let model =
+            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
+        objects.push(object::Object::new(
+            "junk3".to_string(),
+            &device,
+            model,
+            None,
+            None,
+            Some((0.75, 0.75, 0.75)),
+            None,
+        ));
+        let model_bytes = include_bytes!("../models/junk.glb");
+        let model =
+            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
+        objects.push(object::Object::new(
+            "junk4".to_string(),
+            &device,
+            model,
+            None,
+            None,
+            Some((0.25, 0.25, 0.25)),
+            None,
+        ));
+        let model_bytes = include_bytes!("../models/junk.glb");
+        let model =
+            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
+        objects.push(object::Object::new(
+            "junk5".to_string(),
+            &device,
+            model,
+            None,
+            None,
+            Some((0.4, 0.4, 0.4)),
             None,
         ));
         for i in &mut objects {
@@ -223,15 +260,41 @@ impl State {
         false
     }
 
-    unsafe fn update(&mut self) {
+    fn update(&mut self, elapsed: f32) {
         /*use cgmath::InnerSpace;
-        static mut COUNTER: f32 = 0.0;
-        let forward = self.camera.target - self.camera.eye;
-        let forward_norm = forward.normalize();
-        let forward_mag = forward.magnitude();
-        let right = forward_norm.cross(cgmath::Vector3::unit_y());
+        let forwards = self.camera.target - self.camera.eye;
+        let forwards_norm = forwards.normalize();
+        let forwards_mag = forwards.magnitude();
+        let right = forwards_norm.cross(cgmath::Vector3::unit_y());*/
 
-        self.camera.eye = self.camera.target
+        self.objects[0].rotation = cgmath::Quaternion::from_angle_x(cgmath::Deg(elapsed * 50.0))
+            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 70.0))
+            * cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 90.0));
+
+        self.objects[1].position.x = (elapsed * 5.0).sin() * 1.5;
+        self.objects[1].position.y = (elapsed * 7.0).sin() * 1.5;
+        self.objects[1].position.z = (elapsed * 5.0).cos() * 1.5;
+        self.objects[1].rotation = cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 300.0))
+            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 180.0));
+
+        self.objects[2].position.x = (elapsed * 4.0).sin() * 2.0;
+        self.objects[2].position.y = (elapsed * 5.0).sin() * 2.0;
+        self.objects[2].position.z = (elapsed * 3.0).cos() * 2.0;
+        self.objects[2].rotation = cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 200.0))
+            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 100.0));
+
+        self.objects[3].position.x = (elapsed * 2.0).sin() * 2.5;
+        self.objects[3].position.y = (elapsed * 3.0).sin() * 2.5;
+        self.objects[3].position.z = (elapsed).cos() * 2.5;
+        self.objects[3].rotation = cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 500.0))
+            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 300.0));
+
+        self.objects[4].position.x = (elapsed * 2.0).sin() * 4.0;
+        self.objects[4].position.y = (elapsed * 3.0).sin() * 2.5;
+        self.objects[4].position.z = (elapsed).cos() * 4.0;
+        self.objects[4].rotation = cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 750.0))
+            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 200.0));
+        /*self.camera.eye = self.camera.target
             - (forward - right * (COUNTER / 2.0).cos() * 0.0125).normalize() * forward_mag;
         //self.camera.eye.z = COUNTER.cos() * 0.2 + 1.0;
         self.camera.up.x = COUNTER.cos() * 0.4;
@@ -303,6 +366,10 @@ impl State {
             cgmath::Quaternion::from_angle_y(cgmath::Deg((COUNTER * 3.0) % 360.0));
         self.objects[0].scale = (1.0, (COUNTER * 0.25).sin() * 0.5 + 0.75, 1.0);
         self.objects[0].update(&self.queue);*/
+        self.camera.update(&self.queue);
+        for i in &mut self.objects {
+            i.update(&self.queue);
+        }
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -365,6 +432,7 @@ pub async fn run() {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let now = instant::Instant::now();
 
     let mut state = State::new(window).await;
     event_loop.run(move |event, _, control_flow| match event {
@@ -386,9 +454,9 @@ pub async fn run() {
             }
         }
         Event::RedrawRequested(window_id) if window_id == state.window().id() => {
-            unsafe {
-                state.update();
-            }
+            let elapsed = now.elapsed().as_secs_f32();
+            state.update(elapsed);
+
             match state.render() {
                 Ok(_) => {}
                 Err(wgpu::SurfaceError::Lost) => state.resize(state.size), // reconfigure if lost

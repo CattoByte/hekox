@@ -642,6 +642,7 @@ dependencies = [
  "env_logger",
  "gltf",
  "image",
+ "instant",
  "log",
  "pollster",
  "wgpu",

@@ -16,3 +16,4 @@ image = { version = "0.24", default-features = false, features = ["png"] }
 anyhow = "1.0"
 cgmath = "0.18"
 gltf = "1.3.0"
+instant = "0.1.12"
