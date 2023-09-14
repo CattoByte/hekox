@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use cgmath::{prelude::*, Matrix4, Point3, Vector3};
 use wgpu::util::DeviceExt;
 
@@ -10,14 +12,6 @@ const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     0.0, 0.0, 0.0, 1.0,
 );
 
-// i suspect not using either derive's Debug or Clone feature (not sure which) causes some issues when
-// trying to create a bind group.
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraUniform {
-    view_proj: [[f32; 4]; 4],
-}
-
 pub struct Camera {
     pub label: String,
     pub eye: cgmath::Point3<f32>,
@@ -27,8 +21,7 @@ pub struct Camera {
     pub fov: f32, // つづ: consider renaming to 'fovy'.
     pub znear: f32,
     pub zfar: f32,
-    pub uniform: [[f32; 4]; 4], // つづ: test if a field can be used instead of a struct.
-                                // turns out you can. do so with the object file later.
+    pub uniform: [[f32; 4]; 4],
     pub buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
 }
@@ -47,14 +40,15 @@ impl Camera {
     ) -> Self {
         let uniform = Matrix4::identity().into();
 
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some(&format!("{} camera buffer", label)),
-            contents: bytemuck::cast_slice(&[uniform]),
+            size: size_of::<[[f32; 4]; 4]>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(&format!("{} camera_bind_group", label)),
+            label: Some(&format!("{} camera bind group", label)),
             layout: &Camera::layout(&device),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,

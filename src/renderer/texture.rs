@@ -34,6 +34,7 @@ impl Texture {
 
     // this might cause bugs if a texture that is not in the Rgba8UnormSrgb format is given, but
     // i'm curious as to what'll happen.
+    // つづ: fix the above and reconsider the dimensions argument.
     pub fn from_raw_data(
         label: Option<&str>,
         device: &wgpu::Device,
@@ -116,7 +117,7 @@ impl Texture {
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("Depth texture sampler"),
+            label: Some("depth texture sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -134,5 +135,29 @@ impl Texture {
             view,
             sampler,
         }
+    }
+
+    pub fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("texture bind group layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        })
     }
 }

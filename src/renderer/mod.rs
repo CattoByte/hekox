@@ -88,29 +88,6 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("texture_bind_group_layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
-
         let mut camera = camera::Camera::new(
             "the".to_string(), // the camera uniform, the camera buffer, etc.
             &device,
@@ -125,18 +102,13 @@ impl State {
         camera.update(&queue);
 
         let depth_texture =
-            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+            texture::Texture::create_depth_texture(&device, &config, "depth texture");
 
         let mut objects: Vec<object::Object> = Vec::new();
+        let tex_layout = texture::Texture::layout(&device);
         let model_bytes = include_bytes!("../models/junk.glb");
-        let model = resource::load_model_bytes(
-            "junk",
-            model_bytes,
-            &device,
-            &queue,
-            &texture_bind_group_layout,
-        )
-        .unwrap();
+        let model =
+            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
         objects.push(object::Object::new(
             "junk".to_string(),
             &device,
@@ -147,14 +119,8 @@ impl State {
             None,
         ));
         let model_bytes = include_bytes!("../models/junk.glb");
-        let model = resource::load_model_bytes(
-            "junk",
-            model_bytes,
-            &device,
-            &queue,
-            &texture_bind_group_layout,
-        )
-        .unwrap();
+        let model =
+            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
         objects.push(object::Object::new(
             "junk2".to_string(),
             &device,
@@ -175,16 +141,16 @@ impl State {
         });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("render_pipeline_layout"),
+                label: Some("render pipeline layout"),
                 bind_group_layouts: &[
-                    &texture_bind_group_layout,
+                    &texture::Texture::layout(&device),
                     &camera::Camera::layout(&device),
                     &object::Object::layout(&device),
                 ],
                 push_constant_ranges: &[],
             });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("render_pipeline"),
+            label: Some("render pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -249,7 +215,7 @@ impl State {
         self.config.height = new_size.height;
         self.surface.configure(&self.device, &self.config);
         self.depth_texture =
-            texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+            texture::Texture::create_depth_texture(&self.device, &self.config, "depth texture");
         self.camera.aspect = self.config.width as f32 / self.config.height as f32;
     }
 
@@ -352,7 +318,7 @@ impl State {
             });
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("render_pass"),
+            label: Some("render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
                 resolve_target: None,
