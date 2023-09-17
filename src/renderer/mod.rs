@@ -1,7 +1,8 @@
 use cgmath::Rotation3;
 use model::Vertex;
-use std::ops::Mul;
+use std::{ops::Mul, sync::Arc};
 use wgpu::util::DeviceExt;
+// つづ: see if game_loop's winit should be used.
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -25,8 +26,8 @@ static mut INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
     NUM_INSTANCES_PER_ROW as f32 * 0.5,
 );
 
-struct State {
-    window: Window,
+pub struct State {
+    window: Arc<Window>,
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -40,7 +41,7 @@ struct State {
 
 impl State {
     // Wgpu requires some async code
-    async fn new(window: Window) -> Self {
+    pub async fn new(window: Arc<Window>) -> Self {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -48,7 +49,7 @@ impl State {
             dx12_shader_compiler: Default::default(),
         });
 
-        let surface = unsafe { instance.create_surface(&window) }.unwrap();
+        let surface = unsafe { instance.create_surface(&*window) }.unwrap();
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -241,11 +242,12 @@ impl State {
         }
     }
 
+    // つづ: reconsider this; could be deprecated in favour of making the window variable public.
     pub fn window(&self) -> &Window {
         &self.window
     }
 
-    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         //if new_size.width > 0 && new_size.height > 0
         self.size = new_size;
         self.config.width = new_size.width;
@@ -260,7 +262,7 @@ impl State {
         false
     }
 
-    fn update(&mut self, elapsed: f32) {
+    pub fn update(&mut self, elapsed: f32) {
         /*use cgmath::InnerSpace;
         let forwards = self.camera.target - self.camera.eye;
         let forwards_norm = forwards.normalize();
@@ -372,7 +374,7 @@ impl State {
         }
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -428,45 +430,5 @@ impl State {
     }
 }
 
-pub async fn run() {
-    env_logger::init();
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let now = instant::Instant::now();
-
-    let mut state = State::new(window).await;
-    event_loop.run(move |event, _, control_flow| match event {
-        Event::WindowEvent {
-            ref event,
-            window_id,
-        } if window_id == state.window.id() => {
-            if !state.input(event) {
-                match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => {
-                        state.resize(*physical_size);
-                    }
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        state.resize(**new_inner_size);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        Event::RedrawRequested(window_id) if window_id == state.window().id() => {
-            let elapsed = now.elapsed().as_secs_f32();
-            state.update(elapsed);
-
-            match state.render() {
-                Ok(_) => {}
-                Err(wgpu::SurfaceError::Lost) => state.resize(state.size), // reconfigure if lost
-                Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                Err(e) => eprintln!("{:?}", e),
-            }
-        }
-        Event::MainEventsCleared => {
-            state.window().request_redraw();
-        }
-        _ => {}
-    });
-}
+// つづ: deprecate this if no use is found for it.
+pub async fn run() {}
