@@ -15,9 +15,9 @@ use self::model::DrawObject; // this is a trait (which might be deprecated lol).
 mod camera;
 mod instance;
 mod model;
-mod object;
-mod resource;
-mod texture;
+pub mod object;
+pub mod resource;
+pub mod texture;
 
 const NUM_INSTANCES_PER_ROW: u32 = 2;
 static mut INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
@@ -30,12 +30,12 @@ pub struct State {
     window: Arc<Window>,
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     camera: camera::Camera,
     depth_texture: texture::Texture,
-    objects: Vec<object::Object>,
+    pub objects: Vec<object::Object>,
     render_pipeline: wgpu::RenderPipeline,
 }
 
@@ -106,71 +106,11 @@ impl State {
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth texture");
 
-        let mut objects: Vec<object::Object> = Vec::new();
-        let tex_layout = texture::Texture::layout(&device);
-        let model_bytes = include_bytes!("../models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk".to_string(),
-            &device,
-            model,
-            None,
-            None,
-            Some((1.5, 1.5, 1.5)),
-            None,
-        ));
-        let model_bytes = include_bytes!("../models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk2".to_string(),
-            &device,
-            model,
-            None,
-            None,
-            Some((0.5, 0.5, 0.5)),
-            None,
-        ));
-        let model_bytes = include_bytes!("../models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk3".to_string(),
-            &device,
-            model,
-            None,
-            None,
-            Some((0.75, 0.75, 0.75)),
-            None,
-        ));
-        let model_bytes = include_bytes!("../models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk4".to_string(),
-            &device,
-            model,
-            None,
-            None,
-            Some((0.25, 0.25, 0.25)),
-            None,
-        ));
-        let model_bytes = include_bytes!("../models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, &device, &queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk5".to_string(),
-            &device,
-            model,
-            None,
-            None,
-            Some((0.4, 0.4, 0.4)),
-            None,
-        ));
-        for i in &mut objects {
+        let objects: Vec<object::Object> = Vec::new();
+
+        /*for i in &mut objects {
             i.update(&queue);
-        }
+        }*/
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("shader"),
@@ -269,33 +209,6 @@ impl State {
         let forwards_mag = forwards.magnitude();
         let right = forwards_norm.cross(cgmath::Vector3::unit_y());*/
 
-        self.objects[0].rotation = cgmath::Quaternion::from_angle_x(cgmath::Deg(elapsed * 50.0))
-            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 70.0))
-            * cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 90.0));
-
-        self.objects[1].position.x = (elapsed * 5.0).sin() * 1.5;
-        self.objects[1].position.y = (elapsed * 7.0).sin() * 1.5;
-        self.objects[1].position.z = (elapsed * 5.0).cos() * 1.5;
-        self.objects[1].rotation = cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 300.0))
-            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 180.0));
-
-        self.objects[2].position.x = (elapsed * 4.0).sin() * 2.0;
-        self.objects[2].position.y = (elapsed * 5.0).sin() * 2.0;
-        self.objects[2].position.z = (elapsed * 3.0).cos() * 2.0;
-        self.objects[2].rotation = cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 200.0))
-            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 100.0));
-
-        self.objects[3].position.x = (elapsed * 2.0).sin() * 2.5;
-        self.objects[3].position.y = (elapsed * 3.0).sin() * 2.5;
-        self.objects[3].position.z = (elapsed).cos() * 2.5;
-        self.objects[3].rotation = cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 500.0))
-            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 300.0));
-
-        self.objects[4].position.x = (elapsed * 2.0).sin() * 4.0;
-        self.objects[4].position.y = (elapsed * 3.0).sin() * 2.5;
-        self.objects[4].position.z = (elapsed).cos() * 4.0;
-        self.objects[4].rotation = cgmath::Quaternion::from_angle_z(cgmath::Deg(elapsed * 750.0))
-            * cgmath::Quaternion::from_angle_y(cgmath::Deg(elapsed * 200.0));
         /*self.camera.eye = self.camera.target
             - (forward - right * (COUNTER / 2.0).cos() * 0.0125).normalize() * forward_mag;
         //self.camera.eye.z = COUNTER.cos() * 0.2 + 1.0;
