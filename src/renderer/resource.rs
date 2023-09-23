@@ -36,7 +36,7 @@ pub fn load_model_bytes(
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some(&format!("{} bind group", label)),
-            layout,
+            layout, // つづ: fetch layout instead of relying on function arguments.
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,

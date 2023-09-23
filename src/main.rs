@@ -2,6 +2,7 @@ mod renderer;
 use renderer::object;
 use renderer::resource;
 use renderer::texture;
+use renderer::ui;
 use std::{sync::Arc, time::Instant};
 
 use cgmath::num_traits::ToPrimitive;
@@ -95,6 +96,24 @@ impl Game {
         ));
         tree_under_fire.renderer_state.objects = objects;
 
+        let mut ui_elements: Vec<ui::Element> = Vec::new();
+        let test_image = include_bytes!("./textures/test.png");
+        let test_texture = texture::Texture::from_image_bytes(
+            Some(&"test texture".to_string()),
+            &device,
+            &queue,
+            test_image,
+        )
+        .unwrap();
+        ui_elements.push(ui::Element::new(
+            "test".to_string(),
+            &device,
+            test_texture,
+            None,
+            None,
+        ));
+        tree_under_fire.renderer_state.ui_elements = ui_elements;
+
         tree_under_fire
     }
 
@@ -136,6 +155,12 @@ impl Game {
         self.renderer_state.objects[4].rotation =
             cgmath::Quaternion::from_angle_z(cgmath::Deg(tweaked_bricks * 750.0))
                 * cgmath::Quaternion::from_angle_y(cgmath::Deg(tweaked_bricks * 200.0));
+
+        self.renderer_state.ui_elements[0].position.x = (tweaked_bricks * 2.0).sin() * 0.5 - 0.75;
+        self.renderer_state.ui_elements[0].position.y = (tweaked_bricks * 1.5).cos() * 0.5 + 1.0;
+        self.renderer_state.ui_elements[0].scale.0 = ((tweaked_bricks).sin() * 0.5 + 1.0) * 0.5;
+        self.renderer_state.ui_elements[0].scale.1 =
+            ((tweaked_bricks * 1.25).cos() * 0.5 + 1.0) * 0.5;
     }
 
     pub fn handle_event(&mut self, event: &Event<()>) -> bool {

@@ -12,13 +12,18 @@ const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     0.0, 0.0, 0.0, 1.0,
 );
 
+pub enum Projection {
+    Perspective(f32),
+    Orthographic,
+}
+
 pub struct Camera {
     pub label: String,
     pub eye: cgmath::Point3<f32>,
     pub target: cgmath::Point3<f32>,
     pub up: cgmath::Vector3<f32>,
     pub aspect: f32,
-    pub fov: f32, // つづ: consider renaming to 'fovy'.
+    pub projection: Projection,
     pub znear: f32,
     pub zfar: f32,
     pub uniform: [[f32; 4]; 4],
@@ -34,7 +39,7 @@ impl Camera {
         target: T,
         up: U,
         aspect: f32,
-        fov: f32,
+        projection: Projection,
         znear: f32,
         zfar: f32,
     ) -> Self {
@@ -62,7 +67,7 @@ impl Camera {
             target: target.into(),
             up: up.into(),
             aspect,
-            fov,
+            projection,
             znear,
             zfar,
             uniform,
@@ -96,7 +101,13 @@ impl Camera {
 
     fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
         let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
-        let proj = cgmath::perspective(cgmath::Deg(self.fov), self.aspect, self.znear, self.zfar);
+        let proj = match self.projection {
+            Projection::Perspective(fov) => {
+                cgmath::perspective(cgmath::Deg(fov), self.aspect, self.znear, self.zfar)
+            } // つづ: consider renaming to 'fovy'.
+            // つづ: look into how the ortho function actually works.
+            Projection::Orthographic => cgmath::ortho(0.0, 1.0, 1.0, 0.0, -1.0, 1.0),
+        };
 
         return OPENGL_TO_WGPU_MATRIX * proj * view;
     }

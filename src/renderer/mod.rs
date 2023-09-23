@@ -18,6 +18,7 @@ mod model;
 pub mod object;
 pub mod resource;
 pub mod texture;
+pub mod ui;
 
 const NUM_INSTANCES_PER_ROW: u32 = 2;
 static mut INSTANCE_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
@@ -34,8 +35,10 @@ pub struct State {
     pub queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     camera: camera::Camera,
+    ui_camera: camera::Camera,
     depth_texture: texture::Texture,
     pub objects: Vec<object::Object>,
+    pub ui_elements: Vec<ui::Element>,
     render_pipeline: wgpu::RenderPipeline,
 }
 
@@ -90,18 +93,29 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let mut camera = camera::Camera::new(
+        let camera = camera::Camera::new(
             "the".to_string(), // the camera uniform, the camera buffer, etc.
             &device,
             (0.0, 0.0, 6.0),
             (0.0, 0.0, 0.0),
             cgmath::Vector3::unit_y(),
             config.width as f32 / config.height as f32,
-            45.0,
+            camera::Projection::Perspective(45.0),
             0.1,
             100.0,
         );
-        camera.update(&queue);
+
+        let ui_camera = camera::Camera::new(
+            "ui".to_string(),
+            &device,
+            (0.0, 0.0, -1.0),
+            (0.0, 0.0, 0.0),
+            cgmath::Vector3::unit_y(),
+            config.width as f32 / config.height as f32,
+            camera::Projection::Orthographic,
+            0.1,
+            100.0,
+        );
 
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth texture");
@@ -111,6 +125,8 @@ impl State {
         /*for i in &mut objects {
             i.update(&queue);
         }*/
+
+        let ui_elements: Vec<ui::Element> = Vec::new();
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("shader"),
@@ -176,8 +192,10 @@ impl State {
             queue,
             config,
             camera,
+            ui_camera,
             depth_texture,
             objects,
+            ui_elements,
             render_pipeline,
         }
     }
@@ -282,7 +300,11 @@ impl State {
         self.objects[0].scale = (1.0, (COUNTER * 0.25).sin() * 0.5 + 0.75, 1.0);
         self.objects[0].update(&self.queue);*/
         self.camera.update(&self.queue);
+        self.ui_camera.update(&self.queue);
         for i in &mut self.objects {
+            i.update(&self.queue);
+        }
+        for i in &mut self.ui_elements {
             i.update(&self.queue);
         }
     }
@@ -333,6 +355,14 @@ impl State {
         //render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
         for i in &self.objects {
             render_pass.draw_object_instanced(&i, &self.camera.bind_group);
+        }
+        for i in &self.ui_elements {
+            render_pass.draw_mesh(
+                &i.mesh,
+                &i.material,
+                &self.ui_camera.bind_group,
+                &i.bind_group,
+            );
         }
 
         drop(render_pass);
