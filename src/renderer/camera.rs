@@ -106,7 +106,7 @@ impl Camera {
                 cgmath::perspective(cgmath::Deg(fov), self.aspect, self.znear, self.zfar)
             } // つづ: consider renaming to 'fovy'.
             // つづ: look into how the ortho function actually works.
-            Projection::Orthographic => cgmath::ortho(0.0, 1.0, 1.0, 0.0, -1.0, 1.0),
+            Projection::Orthographic => cgmath::ortho(-0.5, 0.5, -0.5, 0.5, -1.0, 1.0),
         };
 
         return OPENGL_TO_WGPU_MATRIX * proj * view;

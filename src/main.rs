@@ -20,6 +20,7 @@ const MAX_FRAME_TIME: f64 = 0.1;
 struct Game {
     renderer_state: renderer::State,
     do_bricks_have_an_inherent_colour: u64,
+    second_store: f32,
 }
 
 impl Game {
@@ -27,6 +28,7 @@ impl Game {
         let mut tree_under_fire = Game {
             renderer_state: pollster::block_on(renderer::State::new(window.clone())),
             do_bricks_have_an_inherent_colour: 0,
+            second_store: 0.0,
         };
 
         let device = &tree_under_fire.renderer_state.device;
@@ -43,55 +45,7 @@ impl Game {
             model,
             None,
             None,
-            Some((1.5, 1.5, 1.5)),
-            None,
-        ));
-        let model_bytes = include_bytes!("./models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, device, queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk2".to_string(),
-            device,
-            model,
-            None,
-            None,
-            Some((0.5, 0.5, 0.5)),
-            None,
-        ));
-        let model_bytes = include_bytes!("./models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, device, queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk3".to_string(),
-            device,
-            model,
-            None,
-            None,
-            Some((0.75, 0.75, 0.75)),
-            None,
-        ));
-        let model_bytes = include_bytes!("./models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, device, queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk4".to_string(),
-            device,
-            model,
-            None,
-            None,
-            Some((0.25, 0.25, 0.25)),
-            None,
-        ));
-        let model_bytes = include_bytes!("./models/junk.glb");
-        let model =
-            resource::load_model_bytes("junk", model_bytes, device, queue, &tex_layout).unwrap();
-        objects.push(object::Object::new(
-            "junk5".to_string(),
-            device,
-            model,
-            None,
-            None,
-            Some((0.4, 0.4, 0.4)),
+            Some((2.0, 2.0, 2.0).into()),
             None,
         ));
         tree_under_fire.renderer_state.objects = objects;
@@ -109,8 +63,9 @@ impl Game {
             "test".to_string(),
             &device,
             test_texture,
+            Some((0.0, 0.0, 3.0).into()),
             None,
-            None,
+            Some((1.25, 1.25)),
         ));
         tree_under_fire.renderer_state.ui_elements = ui_elements;
 
@@ -119,10 +74,35 @@ impl Game {
 
     pub fn update(&mut self) {
         use cgmath::prelude::*;
+        use cgmath::Deg;
 
         self.do_bricks_have_an_inherent_colour += 1;
         let tweaked_bricks = self.do_bricks_have_an_inherent_colour as f32 / 90.0; //* ((self.do_bricks_have_an_inherent_colour as f32 / 180.0).sin() / 3.0 + 2.0);
 
+        if self.second_store == 0.0 {
+            self.renderer_state.objects[0].position.z = 2.0;
+            self.renderer_state.objects[0].position.y = (tweaked_bricks * 4.0).sin().abs() - 2.25;
+            self.renderer_state.objects[0].rotation = cgmath::Quaternion::from(cgmath::Euler {
+                x: Deg(self.second_store),
+                y: Deg(180.0 + self.second_store),
+                z: Deg(((tweaked_bricks * 2.0).sin()) * 50.0),
+            });
+        } else {
+            self.renderer_state.objects[0].position.y = -2.0;
+            self.renderer_state.objects[0].position.z = 0.0;
+            self.renderer_state.objects[0].rotation = cgmath::Quaternion::from(cgmath::Euler {
+                x: Deg(self.second_store),
+                y: Deg(180.0 + tweaked_bricks.sin()),
+                z: Deg(self.second_store * 2.0),
+            });
+        }
+
+        if self.do_bricks_have_an_inherent_colour % 360 < 90 {
+            self.second_store += 4.0;
+        } else {
+            self.second_store = 0.0;
+        }
+        /*
         self.renderer_state.objects[0].rotation =
             cgmath::Quaternion::from_angle_x(cgmath::Deg(tweaked_bricks * 50.0))
                 * cgmath::Quaternion::from_angle_y(cgmath::Deg(tweaked_bricks * 70.0))
@@ -154,13 +134,13 @@ impl Game {
         self.renderer_state.objects[4].position.z = (tweaked_bricks).cos() * 4.0;
         self.renderer_state.objects[4].rotation =
             cgmath::Quaternion::from_angle_z(cgmath::Deg(tweaked_bricks * 750.0))
-                * cgmath::Quaternion::from_angle_y(cgmath::Deg(tweaked_bricks * 200.0));
+                * cgmath::Quaternion::from_angle_y(cgmath::Deg(tweaked_bricks * 200.0));*/
 
-        self.renderer_state.ui_elements[0].position.x = (tweaked_bricks * 2.0).sin() * 0.5 - 0.75;
-        self.renderer_state.ui_elements[0].position.y = (tweaked_bricks * 1.5).cos() * 0.5 + 1.0;
-        self.renderer_state.ui_elements[0].scale.0 = ((tweaked_bricks).sin() * 0.5 + 1.0) * 0.5;
-        self.renderer_state.ui_elements[0].scale.1 =
-            ((tweaked_bricks * 1.25).cos() * 0.5 + 1.0) * 0.5;
+        // there's a bug in the orthographic code that causes the z to affect the size of the ui
+        // elements
+        // self.renderer_state.ui_elements[0].position.z = tweaked_bricks.sin();
+        self.renderer_state.ui_elements[0].rotation =
+            cgmath::Quaternion::from_angle_y(cgmath::Deg(tweaked_bricks.sin() * 50.0));
     }
 
     pub fn handle_event(&mut self, event: &Event<()>) -> bool {

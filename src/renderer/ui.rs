@@ -7,7 +7,8 @@ use super::{model, texture};
 
 pub struct Element {
     pub label: String,
-    pub position: cgmath::Point2<f32>,
+    pub position: cgmath::Point3<f32>,
+    pub rotation: cgmath::Quaternion<f32>,
     pub scale: (f32, f32),
     pub mesh: model::Mesh,
     pub material: model::Material, // つづ: support for alternate materials.
@@ -21,8 +22,8 @@ impl Element {
         label: String,
         device: &wgpu::Device,
         texture: texture::Texture,
-        position: Option<cgmath::Point2<f32>>, // つづ: should these be options?
-        //rotation: Option<cgmath::Quaternion<f32>>,
+        position: Option<cgmath::Point3<f32>>, // つづ: should these be options?
+        rotation: Option<cgmath::Quaternion<f32>>,
         scale: Option<(f32, f32)>,
     ) -> Self {
         /*let vertices: [model::ModelVertex; 4] = [
@@ -52,25 +53,26 @@ impl Element {
             model::ModelVertex {
                 // top left
                 position: [-1.0, 1.0, 0.0],
-                tex_coords: [0.0, 0.0],
+                tex_coords: [1.0, 0.0],
             },
             model::ModelVertex {
                 // bottom left
                 position: [-1.0, -1.0, 0.0],
-                tex_coords: [0.0, 1.0],
+                tex_coords: [1.0, 1.0],
             },
             model::ModelVertex {
                 // bottom right
                 position: [1.0, -1.0, 0.0],
-                tex_coords: [1.0, 1.0],
+                tex_coords: [0.0, 1.0],
             },
             model::ModelVertex {
                 // top right
                 position: [1.0, 1.0, 0.0],
-                tex_coords: [1.0, 0.0],
+                tex_coords: [0.0, 0.0],
             },
         ];
-        let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
+        //let indices: [u32; 6] = [2, 1, 0, 0, 3, 2]; // CW? not CCW?
+        let indices: [u32; 6] = [1, 0, 3, 3, 2, 1]; // CW? not CCW?
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("{} vertex buffer", label)),
             contents: bytemuck::cast_slice(&vertices),
@@ -128,7 +130,8 @@ impl Element {
         });
         Self {
             label,
-            position: position.unwrap_or((0.0, 0.0).into()),
+            position: position.unwrap_or((0.0, 0.0, 0.0).into()),
+            rotation: rotation.unwrap_or((0.0, 0.0, 0.0, 1.0).into()),
             scale: scale.unwrap_or((1.0, 1.0)),
             mesh,
             material,
@@ -157,11 +160,11 @@ impl Element {
     pub fn update(&mut self, queue: &wgpu::Queue) {
         use cgmath::EuclideanSpace;
         // つづ: there has to be a way to optimize this...
-        self.transformation_uniform =
-            (cgmath::Matrix4::from_translation(
-                cgmath::Point3::from((self.position.x, self.position.y, 1.0)).to_vec(),
-            ) * cgmath::Matrix4::from_nonuniform_scale(self.scale.0, self.scale.1, 1.0))
-            .into();
+        self.transformation_uniform = (cgmath::Matrix4::from_translation(self.position.to_vec())
+            * cgmath::Matrix4::from(self.rotation)
+            * cgmath::Matrix4::from_nonuniform_scale(self.scale.0, self.scale.1, 1.0))
+        .into();
+        // is this right? should the .into() not be applied overall?
 
         queue.write_buffer(
             &self.transformation_buffer,
