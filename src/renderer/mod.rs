@@ -7,7 +7,6 @@ use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::Window,
-    window::WindowBuilder,
 };
 
 use self::model::DrawObject; // this is a trait (which might be deprecated lol).
@@ -52,7 +51,8 @@ impl State {
             dx12_shader_compiler: Default::default(),
         });
 
-        let surface = unsafe { instance.create_surface(&*window) }.unwrap();
+        // つづ: fix this horrible mess.
+        let surface = unsafe { instance.create_surface(&Arc::clone(&window)).unwrap() };
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -299,6 +299,8 @@ impl State {
             cgmath::Quaternion::from_angle_y(cgmath::Deg((COUNTER * 3.0) % 360.0));
         self.objects[0].scale = (1.0, (COUNTER * 0.25).sin() * 0.5 + 0.75, 1.0);
         self.objects[0].update(&self.queue);*/
+        
+        println!("{}", elapsed);        
         self.camera.update(&self.queue);
         self.ui_camera.update(&self.queue);
         for i in &mut self.objects {
